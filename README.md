@@ -1,8 +1,8 @@
-# API Tweteroo
+# API Bate-papo UOL
 
 ### Descritivo:
 
-- Seu primeiro projeto back-end será a construção da API do Tweteroo, um clone do Twitter!
+- Seu projeto back-end será a construção da API do Bate-papo UOL!
 
 ### Imagem do desafio:
 
