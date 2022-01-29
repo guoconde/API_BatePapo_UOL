@@ -1,9 +1,10 @@
 import express, { json } from "express";
 import cors from 'cors'
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import dotenv from 'dotenv';
 import joi from "joi";
 import dayjs from "dayjs";
+import { stripHtml } from "string-strip-html";
 
 const app = express()
 dotenv.config()
@@ -58,6 +59,7 @@ setInterval(async () => {
             }
         }
         mongoClient.close()
+
     } catch (error) {
         console.error(error)
         mongoClient.close()
@@ -67,16 +69,20 @@ setInterval(async () => {
 
 app.post('/participants', async (req, res) => {
 
+    const participant = req.body
+
+    participant.name = stripHtml(participant.name).result.trim()
+
     const { mongoClient, db } = await mongoConnect();
 
-    const nameIsValid = await db.collection('participants').findOne({ name: req.body.name })
+    const nameIsValid = await db.collection('participants').findOne({ name: participant.name })
 
     if (nameIsValid) {
         res.sendStatus(409)
         return
     }
 
-    const validation = nameSchema.validate(req.body)
+    const validation = nameSchema.validate(participant)
 
     if (validation.error) {
         res.sendStatus(422)
@@ -85,10 +91,10 @@ app.post('/participants', async (req, res) => {
 
     try {
 
-        await db.collection('participants').insertOne({ ...req.body, lastStatus: Date.now() })
+        await db.collection('participants').insertOne({ ...participant, lastStatus: Date.now() })
         await db.collection('messages').insertOne(
             {
-                from: req.body.name,
+                from: participant.name,
                 to: 'Todos',
                 text: 'entra na sala...',
                 type: 'status',
@@ -97,6 +103,7 @@ app.post('/participants', async (req, res) => {
         )
         res.sendStatus(201)
         mongoClient.close()
+
     } catch (error) {
         console.error(error)
         res.sendStatus(500)
@@ -113,6 +120,7 @@ app.get('/participants', async (req, res) => {
         const participants = await db.collection('participants').find({}).toArray()
         res.send(participants)
         mongoClient.close()
+
     } catch (error) {
         console.error(error)
         res.sendStatus(500)
@@ -126,8 +134,14 @@ app.post('/messages', async (req, res) => {
     const { mongoClient, db } = await mongoConnect();
 
     const from = req.headers.user
+    const msg = { ...req.body, from }
 
-    const validation = messageSchema.validate(req.body)
+    msg.from = stripHtml(msg.from).result.trim()
+    msg.to = stripHtml(msg.to).result.trim()
+    msg.text = stripHtml(msg.text).result.trim()
+    msg.type = stripHtml(msg.type).result.trim()
+
+    const validation = messageSchema.validate(msg)
 
     if (validation.error) {
         res.sendStatus(422)
@@ -137,13 +151,13 @@ app.post('/messages', async (req, res) => {
     try {
         await db.collection('messages').insertOne(
             {
-                ...req.body,
-                from: from,
+                ...msg,
                 time: dayjs().format('hh:mm:ss')
             }
         )
         res.sendStatus(201)
         mongoClient.close()
+
     } catch (error) {
         res.sendStatus(error)
         mongoClient.close()
@@ -169,13 +183,12 @@ app.get('/messages', async (req, res) => {
         if (arrMessages.length >= limit) {
             const arrLimit = arrMessages.slice(-limit)
             res.send(arrLimit)
-
         }
         else {
             res.send(arrMessages)
-
         }
         mongoClient.close()
+
     } catch (error) {
         console.error(error)
         res.sendStatus(500)
@@ -198,8 +211,42 @@ app.post('/status', async (req, res) => {
         } else {
             res.sendStatus(404)
         }
-        
+
         mongoClient.close()
+
+    } catch (error) {
+        console.error(error)
+        mongoClient.close()
+    }
+})
+
+app.delete('/messages/:id', async (req, res) => {
+
+    const { mongoClient, db } = await mongoConnect();
+
+    const id = req.params.id
+
+    const user = req.headers.user
+
+    try {
+        const msgIsValid = await db.collection('messages').findOne({ _id: new ObjectId(id) })
+
+        if (!msgIsValid) {
+            res.sendStatus(404)
+            mongoClient.close()
+            return
+        }
+
+        if(user !== msgIsValid.from) {
+            res.sendStatus(401)
+            mongoClient.close()
+            return
+        }
+
+        await db.collection('messages').deleteOne({ _id: new ObjectId(id) })
+        res.sendStatus(200)
+        mongoClient.close()
+
     } catch (error) {
         console.error(error)
         mongoClient.close()
