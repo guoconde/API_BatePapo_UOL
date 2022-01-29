@@ -136,14 +136,32 @@ app.post('/messages', async (req, res) => {
 
 app.get('/messages', async (req, res) => {
 
+    const msg = req.headers.user
+
+    const limit = req.query.limit
+
     mongoClient.connect(() => {
         db = mongoClient.db('chat_UOL')
     })
 
+    
     try {
         const arrMessages = await db.collection('messages').find().toArray()
-        res.send(arrMessages)
-        mongoClient.close()
+    
+        const arrFilterFrom = arrMessages.filter(a => a.from === msg)
+        const arrFilterTo = arrMessages.filter(a => a.to === 'Todos')
+        const newArrMessages = [...arrFilterFrom, ...arrFilterTo]
+
+        if(arrMessages.length >= limit) {
+            const arrLimit = newArrMessages.slice(-limit)
+            res.send(arrLimit)
+            mongoClient.close()
+        } 
+        else {
+            res.send(newArrMessages)
+            mongoClient.close()
+        }
+
 
     } catch (error) {
         console.error(error)
@@ -152,9 +170,9 @@ app.get('/messages', async (req, res) => {
     }
 })
 
-// app.post('/status', (req, res) => {
+app.post('/status', (req, res) => {
 
-//     console.log(req.headers.user)
-// })
+    console.log(req.headers.user)
+})
 
 app.listen(5000, () => console.log('Rodando na porta 5000'))
