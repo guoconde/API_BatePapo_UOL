@@ -19,7 +19,7 @@ const nameSchema = joi.object({
 const messageSchema = joi.object({
     to: joi.string().required(),
     text: joi.string().required(),
-    type: joi.alternatives().try(joi.string().valid('message'), joi.string().valid('private_message')).required(),
+    type: joi.alternatives().valid('message', 'private_message').required(),
     from: joi.string()
 })
 
@@ -27,7 +27,7 @@ async function mongoConnect() {
 
     try {
         const mongoClient = new MongoClient(process.env.MONGO_URI);
-        await mongoClient.connect();
+        await mongoClient.connect()
         const db = mongoClient.db('chat_UOL')
         return { mongoClient, db };
     } catch (error) {
@@ -37,7 +37,7 @@ async function mongoConnect() {
 
 setInterval(async () => {
 
-    const { mongoClient, db } = await mongoConnect();
+    const { mongoClient, db } = await mongoConnect()
 
     const participants = await db.collection('participants').find().toArray()
 
@@ -73,7 +73,7 @@ app.post('/participants', async (req, res) => {
 
     participant.name = stripHtml(participant.name).result.trim()
 
-    const { mongoClient, db } = await mongoConnect();
+    const { mongoClient, db } = await mongoConnect()
 
     const nameIsValid = await db.collection('participants').findOne({ name: participant.name })
 
@@ -114,7 +114,7 @@ app.post('/participants', async (req, res) => {
 
 app.get('/participants', async (req, res) => {
 
-    const { mongoClient, db } = await mongoConnect();
+    const { mongoClient, db } = await mongoConnect()
 
     try {
         const participants = await db.collection('participants').find({}).toArray()
@@ -131,7 +131,7 @@ app.get('/participants', async (req, res) => {
 
 app.post('/messages', async (req, res) => {
 
-    const { mongoClient, db } = await mongoConnect();
+    const { mongoClient, db } = await mongoConnect()
 
     const from = req.headers.user
     const msg = { ...req.body, from }
@@ -167,7 +167,7 @@ app.post('/messages', async (req, res) => {
 
 app.get('/messages', async (req, res) => {
 
-    const { mongoClient, db } = await mongoConnect();
+    const { mongoClient, db } = await mongoConnect()
 
     const user = req.headers.user
 
@@ -198,7 +198,7 @@ app.get('/messages', async (req, res) => {
 
 app.post('/status', async (req, res) => {
 
-    const { mongoClient, db } = await mongoConnect();
+    const { mongoClient, db } = await mongoConnect()
 
     const user = req.headers.user
 
@@ -222,7 +222,7 @@ app.post('/status', async (req, res) => {
 
 app.delete('/messages/:id', async (req, res) => {
 
-    const { mongoClient, db } = await mongoConnect();
+    const { mongoClient, db } = await mongoConnect()
 
     const id = req.params.id
 
@@ -237,7 +237,7 @@ app.delete('/messages/:id', async (req, res) => {
             return
         }
 
-        if(user !== msgIsValid.from) {
+        if (user !== msgIsValid.from) {
             res.sendStatus(401)
             mongoClient.close()
             return
@@ -249,6 +249,54 @@ app.delete('/messages/:id', async (req, res) => {
 
     } catch (error) {
         console.error(error)
+        mongoClient.close()
+    }
+})
+
+app.put('/messages/:id', async (req, res) => {
+
+    const { mongoClient, db } = await mongoConnect()
+
+    const id = req.params.id
+    const from = req.headers.user
+    const msg = { ...req.body, from }
+
+    msg.to = stripHtml(msg.to).result.trim()
+    msg.text = stripHtml(msg.text).result.trim()
+    msg.type = stripHtml(msg.type).result.trim()
+    msg.from = stripHtml(msg.from).result.trim()
+    
+    const validation = messageSchema.validate(msg)
+    
+    msg.lastStatus = dayjs().format('hh:mm:ss')
+
+    if (validation.error) {
+        res.sendStatus(422)
+        return
+    }
+
+    try {
+
+        const msgIsValid = await db.collection('messages').findOne({ _id: new ObjectId(id) })
+
+        if (!msgIsValid) {
+            res.sendStatus(404)
+            mongoClient.close()
+            return
+        }
+
+        if (from !== msgIsValid.from) {
+            res.sendStatus(401)
+            mongoClient.close()
+            return
+        }
+
+        await db.collection('messages').updateOne({ _id: msgIsValid._id }, { $set: msg })
+        res.sendStatus(201)
+        mongoClient.close()
+
+    } catch (error) {
+        res.sendStatus(error)
         mongoClient.close()
     }
 })
