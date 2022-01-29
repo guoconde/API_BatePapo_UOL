@@ -136,29 +136,29 @@ app.post('/messages', async (req, res) => {
 
 app.get('/messages', async (req, res) => {
 
-    const msg = req.headers.user
+    const user = req.headers.user
 
-    const limit = req.query.limit
+    const limit = parseInt(req.query.limit)
 
     mongoClient.connect(() => {
         db = mongoClient.db('chat_UOL')
     })
 
-    
-    try {
-        const arrMessages = await db.collection('messages').find().toArray()
-    
-        const arrFilterFrom = arrMessages.filter(a => a.from === msg)
-        const arrFilterTo = arrMessages.filter(a => a.to === 'Todos')
-        const newArrMessages = [...arrFilterFrom, ...arrFilterTo]
 
-        if(arrMessages.length >= limit) {
-            const arrLimit = newArrMessages.slice(-limit)
+    try {
+        const arrMessages = await db.collection('messages').find(
+            {
+                $or: [{ to: 'Todos' }, { from: user }, { to: user }, { type: 'message' }]
+            }
+        ).toArray()
+
+        if (arrMessages.length >= limit) {
+            const arrLimit = arrMessages.slice(-limit)
             res.send(arrLimit)
             mongoClient.close()
-        } 
+        }
         else {
-            res.send(newArrMessages)
+            res.send(arrMessages)
             mongoClient.close()
         }
 
@@ -170,9 +170,27 @@ app.get('/messages', async (req, res) => {
     }
 })
 
-app.post('/status', (req, res) => {
+app.post('/status', async (req, res) => {
+    const user = req.headers.user
 
-    console.log(req.headers.user)
+    mongoClient.connect(() => {
+        db = mongoClient.db('chat_UOL')
+    })
+
+    try {
+        const participants = await db.collection('participants').findOne({ name: user })
+
+        if (participants.name) {
+            await db.collection('participants').updateOne({ _id: participants._id }, { $set: { lastStatus: Date.now() } })
+            res.sendStatus(200)
+            mongoClient.close()
+        } else {
+            res.sendStatus(404)
+        }
+    } catch (error) {
+        console.error(error)
+        mongoClient.close()
+    }
 })
 
 app.listen(5000, () => console.log('Rodando na porta 5000'))
