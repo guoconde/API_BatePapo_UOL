@@ -22,17 +22,52 @@ const messageSchema = joi.object({
     from: joi.string()
 })
 
-const mongoClient = new MongoClient(process.env.MONGO_URI)
-let db
-mongoClient.connect(() => {
-    db = mongoClient.db('chat_UOL')
-})
+async function mongoConnect() {
+
+    try {
+        const mongoClient = new MongoClient(process.env.MONGO_URI);
+        await mongoClient.connect();
+        const db = mongoClient.db('chat_UOL')
+        return { mongoClient, db };
+    } catch (error) {
+        console.error(error)
+    }
+};
+
+setInterval(async () => {
+
+    const { mongoClient, db } = await mongoConnect();
+
+    const participants = await db.collection('participants').find().toArray()
+
+    try {
+
+        for (let participant of participants) {
+            if (participant.lastStatus < Date.now() - 10000) {
+
+                await db.collection('messages').insertOne(
+                    {
+                        from: participant.name,
+                        to: 'Todos',
+                        text: 'Sai da sala...',
+                        type: 'status',
+                        time: dayjs(Date.now()).format('hh:mm:ss')
+                    }
+                )
+                await db.collection('participants').deleteOne({ _id: participant._id })
+            }
+        }
+        mongoClient.close()
+    } catch (error) {
+        console.error(error)
+        mongoClient.close()
+    }
+
+}, 15000);
 
 app.post('/participants', async (req, res) => {
 
-    mongoClient.connect(() => {
-        db = mongoClient.db('chat_UOL')
-    })
+    const { mongoClient, db } = await mongoConnect();
 
     const nameIsValid = await db.collection('participants').findOne({ name: req.body.name })
 
@@ -51,59 +86,46 @@ app.post('/participants', async (req, res) => {
     try {
 
         await db.collection('participants').insertOne({ ...req.body, lastStatus: Date.now() })
-
         await db.collection('messages').insertOne(
             {
                 from: req.body.name,
                 to: 'Todos',
                 text: 'entra na sala...',
                 type: 'status',
-                time: dayjs(Date.now()).format('hh:mm:ss')
+                time: dayjs().format('hh:mm:ss')
             }
         )
-
         res.sendStatus(201)
         mongoClient.close()
-
     } catch (error) {
-
         console.error(error)
         res.sendStatus(500)
         mongoClient.close()
-
     }
 
 })
 
 app.get('/participants', async (req, res) => {
 
-    mongoClient.connect(() => {
-        db = mongoClient.db('chat_UOL')
-    })
+    const { mongoClient, db } = await mongoConnect();
 
     try {
-
-        const participants = await db.collection('participants').find().toArray()
+        const participants = await db.collection('participants').find({}).toArray()
         res.send(participants)
         mongoClient.close()
-
     } catch (error) {
-
         console.error(error)
         res.sendStatus(500)
         mongoClient.close()
-
     }
 
 })
 
 app.post('/messages', async (req, res) => {
 
-    const from = req.headers.user
+    const { mongoClient, db } = await mongoConnect();
 
-    mongoClient.connect(() => {
-        db = mongoClient.db('chat_UOL')
-    })
+    const from = req.headers.user
 
     const validation = messageSchema.validate(req.body)
 
@@ -113,37 +135,29 @@ app.post('/messages', async (req, res) => {
     }
 
     try {
-
         await db.collection('messages').insertOne(
             {
                 ...req.body,
                 from: from,
-                time: dayjs(Date.now()).format('hh:mm:ss')
+                time: dayjs().format('hh:mm:ss')
             }
         )
         res.sendStatus(201)
         mongoClient.close()
-
     } catch (error) {
-
-        console.error(error)
         res.sendStatus(error)
         mongoClient.close()
-
     }
 
 })
 
 app.get('/messages', async (req, res) => {
 
+    const { mongoClient, db } = await mongoConnect();
+
     const user = req.headers.user
 
     const limit = parseInt(req.query.limit)
-
-    mongoClient.connect(() => {
-        db = mongoClient.db('chat_UOL')
-    })
-
 
     try {
         const arrMessages = await db.collection('messages').find(
@@ -155,14 +169,13 @@ app.get('/messages', async (req, res) => {
         if (arrMessages.length >= limit) {
             const arrLimit = arrMessages.slice(-limit)
             res.send(arrLimit)
-            mongoClient.close()
+
         }
         else {
             res.send(arrMessages)
-            mongoClient.close()
+
         }
-
-
+        mongoClient.close()
     } catch (error) {
         console.error(error)
         res.sendStatus(500)
@@ -171,11 +184,10 @@ app.get('/messages', async (req, res) => {
 })
 
 app.post('/status', async (req, res) => {
-    const user = req.headers.user
 
-    mongoClient.connect(() => {
-        db = mongoClient.db('chat_UOL')
-    })
+    const { mongoClient, db } = await mongoConnect();
+
+    const user = req.headers.user
 
     try {
         const participants = await db.collection('participants').findOne({ name: user })
@@ -183,10 +195,11 @@ app.post('/status', async (req, res) => {
         if (participants.name) {
             await db.collection('participants').updateOne({ _id: participants._id }, { $set: { lastStatus: Date.now() } })
             res.sendStatus(200)
-            mongoClient.close()
         } else {
             res.sendStatus(404)
         }
+        
+        mongoClient.close()
     } catch (error) {
         console.error(error)
         mongoClient.close()
