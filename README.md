@@ -4,6 +4,28 @@
 
 - Seu projeto back-end será a construção da API do Bate-papo UOL!
 
+  - Armazenamento de dados
+            
+  - **POST** `/participants`
+    
+  - **GET** `/participants`
+    
+  - **POST** `/messages`
+    
+  - **GET** `/messages`
+    
+  - **POST** `/status`
+    
+  - Remoção automática de usuários inativos
+
+- **BÔNUS**
+
+  - Sanitização de dados
+    
+  - **DELETE** `/messages/ID_DA_MENSAGEM`
+    
+  - **PUT** `/messages/ID_DA_MENSAGEM`
+  
 ### Imagem do desafio:
 
 <p>
