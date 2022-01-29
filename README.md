@@ -4,7 +4,7 @@
 
 - Seu projeto back-end será a construção da API do Bate-papo UOL!
 
-  - Armazenamento de dados
+  - **Armazenamento de dados**
             
   - **POST** `/participants`
     
@@ -18,9 +18,9 @@
     
   - Remoção automática de usuários inativos
 
-- **BÔNUS**
+- **BÔNUS:**
 
-  - Sanitização de dados
+  - **Sanitização de dados**
     
   - **DELETE** `/messages/ID_DA_MENSAGEM`
     
