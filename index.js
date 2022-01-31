@@ -39,9 +39,8 @@ setInterval(async () => {
 
     const { mongoClient, db } = await mongoConnect()
 
-    const participants = await db.collection('participants').find().toArray()
-
     try {
+        const participants = await db.collection('participants').find().toArray()
 
         for (let participant of participants) {
             if (participant.lastStatus < Date.now() - 10000) {
@@ -61,7 +60,8 @@ setInterval(async () => {
         mongoClient.close()
 
     } catch (error) {
-        console.error(error)
+        res.sendStatus(500)
+        console.log(error)
         mongoClient.close()
     }
 
@@ -75,13 +75,6 @@ app.post('/participants', async (req, res) => {
 
     const { mongoClient, db } = await mongoConnect()
 
-    const nameIsValid = await db.collection('participants').findOne({ name: participant.name })
-
-    if (nameIsValid) {
-        res.sendStatus(409)
-        return
-    }
-
     const validation = nameSchema.validate(participant)
 
     if (validation.error) {
@@ -90,6 +83,13 @@ app.post('/participants', async (req, res) => {
     }
 
     try {
+
+        const nameIsNotValid = await db.collection('participants').findOne({ name: participant.name })
+
+        if (nameIsNotValid) {
+            res.sendStatus(409)
+            return
+        }
 
         await db.collection('participants').insertOne({ ...participant, lastStatus: Date.now() })
         await db.collection('messages').insertOne(
@@ -159,7 +159,8 @@ app.post('/messages', async (req, res) => {
         mongoClient.close()
 
     } catch (error) {
-        res.sendStatus(error)
+        console.error(error)
+        res.sendStatus(500)
         mongoClient.close()
     }
 
@@ -216,6 +217,7 @@ app.post('/status', async (req, res) => {
 
     } catch (error) {
         console.error(error)
+        res.sendStatus(500)
         mongoClient.close()
     }
 })
@@ -249,6 +251,7 @@ app.delete('/messages/:id', async (req, res) => {
 
     } catch (error) {
         console.error(error)
+        res.sendStatus(500)
         mongoClient.close()
     }
 })
@@ -296,7 +299,8 @@ app.put('/messages/:id', async (req, res) => {
         mongoClient.close()
 
     } catch (error) {
-        res.sendStatus(error)
+        console.error(error)
+        res.sendStatus(500)
         mongoClient.close()
     }
 })

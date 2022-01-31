@@ -16,7 +16,7 @@
     
   - **POST** `/status`
     
-  - Remoção automática de usuários inativos
+  - **Remoção automática de usuários inativos**
 
 - **BÔNUS:**
 
